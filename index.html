@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VincentNote — Espace famille</title>
+<style>
+:root{--bg:#eef3f8;--card:#fff;--ink:#183047;--muted:#6c7c8c;--blue:#286aa6;--blue2:#174d7b;--line:#dbe4ec;--ok:#25845c;--bad:#b43c45}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,Helvetica,sans-serif;background:var(--bg);color:var(--ink)}
+header{height:72px;background:linear-gradient(90deg,var(--blue2),var(--blue));color:#fff;display:flex;align-items:center;padding:0 28px;box-shadow:0 2px 10px #0002}
+.brand{font-size:25px;font-weight:700}.brand small{font-size:12px;font-weight:400;display:block;opacity:.8}
+.wrap{max-width:1050px;margin:34px auto;padding:0 18px}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 4px 18px #17324d12;padding:24px}
+.login{max-width:460px;margin:65px auto}.login h1{font-size:23px;margin-top:0}.field{margin:16px 0}
+label{display:block;font-weight:700;font-size:14px;margin-bottom:7px}input,select,textarea{width:100%;padding:12px;border:1px solid #bdcad6;border-radius:6px;font:inherit;background:white}
+button{border:0;border-radius:6px;background:var(--blue);color:#fff;padding:11px 16px;font-weight:700;cursor:pointer}button:hover{filter:brightness(.94)}
+button.secondary{background:#65798c}button.danger{background:var(--bad)}button.ok{background:var(--ok)}
+.error{background:#fdebed;color:#8f2630;padding:10px;border-radius:6px;margin:12px 0;display:none}
+.notice{background:#eaf4ff;border-left:4px solid var(--blue);padding:12px;margin:12px 0;border-radius:4px}
+.top{display:flex;justify-content:space-between;align-items:center;gap:15px;margin-bottom:20px}.top h1{margin:0;font-size:25px}
+.grid{display:grid;grid-template-columns:1fr 1.5fr;gap:20px}.task{border:1px solid var(--line);border-radius:8px;padding:15px;margin:12px 0;background:#fbfdff}
+.task h3{margin:0 0 6px}.meta{font-size:13px;color:var(--muted);margin-bottom:8px}.badge{display:inline-block;padding:4px 8px;border-radius:12px;font-size:12px;font-weight:700;background:#e8eef4}.done{background:#ddf5e9;color:#176543}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.hidden{display:none!important}
+footer{text-align:center;color:#778797;font-size:12px;padding:35px}
+.tabs{display:flex;gap:8px;margin-bottom:18px;flex-wrap:wrap}.tabs button{background:#dfe9f2;color:#24445f}.tabs button.active{background:var(--blue);color:white}
+.timetable{overflow-x:auto}.tt{width:100%;border-collapse:collapse;min-width:720px;table-layout:fixed}.tt th,.tt td{border:1px solid #b9c7d3;padding:10px;text-align:center;vertical-align:middle}.tt th{background:#edf3f8}.tt .time{width:90px;background:#f7f9fb;font-size:13px;color:#627487}.tt .lesson{font-weight:700;background:#fff}.tt .break{background:#f3f5f7;color:#64717c;font-weight:700}.tt small{display:block;font-weight:400;color:#6c7c8c;margin-top:4px}
+@media(max-width:750px){.grid{grid-template-columns:1fr}header{padding:0 15px}}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<header><div class="brand">VincentNote <small>Portail familial — site fictif</small></div></header>
+
+<main class="wrap">
+<section id="loginView" class="card login">
+<h1>Connexion à votre espace</h1>
+<p style="color:var(--muted)">Connectez-vous avec votre compte VincentNote.</p>
+<div id="loginError" class="error">Identifiant ou mot de passe incorrect.</div>
+<div class="field"><label>Adresse e-mail</label><input id="username" type="email" autocomplete="username"></div>
+<div class="field"><label>Mot de passe</label><input id="password" type="password" autocomplete="current-password"></div>
+<button onclick="login()">Se connecter</button>
+</section>
+
+<section id="changeView" class="card login hidden">
+<h1>Première connexion 🔐</h1>
+<div class="notice">Pour terminer l'activation de votre compte, choisissez maintenant votre mot de passe personnel.</div>
+<div id="changeError" class="error"></div>
+<div class="field"><label>Nouveau mot de passe</label><input id="newPassword" type="password"></div>
+<div class="field"><label>Confirmer le mot de passe</label><input id="newPassword2" type="password"></div>
+<button onclick="activate()">Activer mon compte</button>
+</section>
+
+<section id="appView" class="hidden">
+<div class="top"><div><h1 id="welcome"></h1><div id="roleText" style="color:var(--muted)"></div></div><button class="secondary" onclick="logout()">Déconnexion</button></div>
+
+
+<div class="tabs">
+<button id="workTab" class="active" onclick="switchTab('work')">📚 Travail à faire</button>
+<button id="timeTab" onclick="switchTab('time')">🗓️ Emploi du temps</button>
+<button id="rulesTab" onclick="switchTab('rules')">📜 Règlement intérieur</button>
+</div>
+
+<div id="timetablePanel" class="card hidden">
+<h2>🗓️ Emploi du temps</h2>
+<div id="weekIndicator" class="notice"></div>
+<p style="color:var(--muted)">Emploi du temps du week-end — alternance automatique semaine A / semaine B.</p>
+<div class="timetable">
+<table class="tt">
+<tr><th class="time">Horaire</th><th>SAMEDI</th><th>DIMANCHE</th></tr>
+<tr><td class="time">09:50 – 10:40</td><td class="lesson">Français<small>Salle 112</small></td><td class="lesson">Anglais<small>Salle 112</small></td></tr>
+<tr><td class="time">10:45 – 11:35</td><td class="lesson">Maths<small>Salle 001INF</small></td><td class="lesson">Français<small>Salle 112</small></td></tr>
+<tr><td class="time">11:40 – 12:30</td><td></td><td class="break">REPAS</td></tr>
+<tr><td class="time">12:35 – 13:25</td><td id="satAB" class="lesson"></td><td class="lesson">Histoire-Géo<small>Salle 112</small></td></tr>
+<tr><td class="time">13:30 – 14:20</td><td class="break">REPAS</td><td class="lesson">EPS<small>Jardin</small></td></tr>
+<tr><td class="time">14:25 – 15:15</td><td class="lesson">SVT / Sciences<small>Jardin</small></td><td class="lesson">Maths<small>Salle 112</small></td></tr>
+</table>
+</div>
+</div>
+
+
+<div id="rulesPanel" class="card hidden">
+<h2>📜 Règlement intérieur du Collège Ferdinand</h2>
+<p style="color:var(--muted)"><b>Année scolaire 2026–2027</b> — Direction : M. Vincent, Principal 👑</p>
+<div class="notice">Le présent règlement s'applique à tous les élèves inscrits au Collège Ferdinand, notamment Papa et Maman. L'inscription au collège implique le respect des règles suivantes.</div>
+
+<h3>Article 1 — Assiduité et ponctualité</h3>
+<p>Les élèves doivent être présents à tous les cours prévus dans leur emploi du temps. Ils doivent arriver <b>à l'heure</b>, avec leur matériel, et être prêts à travailler au début du cours. Tout retard injustifié pourra être enregistré par l'administration.</p>
+
+<h3>Article 2 — Travail scolaire</h3>
+<p>Les devoirs publiés dans <b>VincentNote</b> doivent être effectués pour la date indiquée. L'élève doit consulter régulièrement son espace personnel. L'excuse « je n'avais pas vu le devoir » ne sera donc pas considérée comme particulièrement convaincante. 💀</p>
+
+<h3>Article 3 — Matériel</h3>
+<p>Chaque élève doit disposer du matériel nécessaire au cours concerné : feuilles, stylos, cahier ou tout autre matériel demandé par le professeur. Pour l'EPS, une tenue adaptée est recommandée.</p>
+
+<h3>Article 4 — Comportement</h3>
+<p>Les élèves doivent respecter le professeur, le principal et les autres membres de l'établissement. Les cris, interruptions répétées et tentatives de négociation du type « on peut faire ça demain ? » peuvent faire l'objet d'une remarque. 😂</p>
+
+<h3>Article 5 — Téléphones et écrans</h3>
+<p>L'utilisation d'un téléphone, d'une tablette ou d'un autre appareil pendant un cours est interdite sauf autorisation du professeur. Consulter discrètement son téléphone sous la table <b>compte quand même</b>. 👀📱</p>
+
+<h3>Article 6 — Devoirs terminés</h3>
+<p>Un travail ne peut être marqué <b>« TERMINÉ »</b> dans VincentNote que lorsqu'il est réellement terminé. Cliquer sur le bouton juste pour faire disparaître le devoir constitue une tentative de fraude scolaire extrêmement grave selon le Principal Vincent. 🧐</p>
+
+<h3>Article 7 — Évaluations</h3>
+<p>Des contrôles peuvent être organisés dans les différentes matières. Les résultats pourront être exprimés sur <b>20</b> et servir au calcul d'une moyenne. Les élèves ont le droit de demander une explication concernant leur note.</p>
+
+<h3>Article 8 — Récréations et repas</h3>
+<p>Les périodes indiquées <b>REPAS</b> dans l'emploi du temps sont des périodes sans cours. Aucun devoir ne peut normalement être imposé pendant le repas, sauf décision exceptionnelle de la direction en cas de <b>catastrophe scolaire absolue</b>. 😂</p>
+
+<h3>Article 9 — Semaines A et B</h3>
+<p>Les élèves doivent respecter l'emploi du temps correspondant à la semaine en cours. VincentNote indique automatiquement s'il s'agit d'une <b>semaine A ou B</b>. Toute tentative d'utiliser volontairement le mauvais emploi du temps pour échapper au français sera examinée avec la plus grande attention. 💀</p>
+
+<h3>Article 10 — Absences</h3>
+<p>Toute absence doit être justifiée. Les motifs tels que maladie, rendez-vous ou obligation importante peuvent être acceptés. Le motif <b>« grosse flemme »</b> ne constitue pas un justificatif officiel. 🗿</p>
+
+<h3>Article 11 — Sanctions</h3>
+<p>En cas de non-respect du règlement, les sanctions pourront être progressives : remarque, avertissement, travail supplémentaire raisonnable ou convocation dans le <b>bureau du Principal Vincent</b>. Toute sanction peut naturellement être contestée auprès du Principal… qui est également la personne ayant prononcé la sanction. Ça commence mal. 😂</p>
+
+<h3>Article 12 — Récompenses</h3>
+<p>Le collège ne fonctionne pas uniquement avec des sanctions ! Un élève sérieux, ponctuel et ayant terminé son travail pourra recevoir des <b>félicitations</b>, encouragements ou distinctions sur son bulletin. 🏆</p>
+
+<h3>Article 13 — Pouvoir suprême du Principal</h3>
+<p>Le Principal Vincent doit lui aussi respecter le règlement. Il ne peut pas inventer une nouvelle règle juste parce que Papa vient de gagner un débat contre lui.</p>
+<p><b>Même le Principal n'est pas au-dessus de la loi.</b> 😭⚖️</p>
+</div>
+
+<div id="workPanels">
+<div id="adminPanel" class="grid hidden">
+<div class="card">
+<h2>📝 Nouveau travail</h2>
+<div class="field"><label>Pour</label><select id="target"><option value="papa">Papa</option><option value="maman">Maman</option><option value="philippe">Philippe</option></select></div>
+<div class="field"><label>Catégorie</label><select id="subject"><option>Français</option><option>Maths</option><option>Histoire-Géo</option><option>EPS</option><option>SVT / Sciences</option><option>Anglais</option><option>Espagnol</option><option>Technologie</option><option>Arts plastiques</option><option>Éducation musicale</option><option>Autre</option></select></div>
+<div class="field"><label>Travail à faire</label><textarea id="taskText" rows="4"></textarea></div>
+<div class="field"><label>Pour le</label><input id="due" type="date"></div>
+<button onclick="addTask()">Publier le travail</button>
+</div>
+<div class="card"><h2>📚 Travaux distribués</h2><div id="adminTasks"></div></div>
+</div>
+
+<div id="userPanel" class="card hidden"><h2>📚 Mon travail à faire</h2><div id="userTasks"></div></div>
+</div>
+</section>
+</main>
+<footer>VincentNote Cloud v7.2 — projet familial fictif, sans lien avec PRONOTE ou l'ENT des Yvelines.</footer>
+
+<script>
+
+const SUPABASE_URL = "https://pplmlrnljikbwcjiqwhe.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_xShV7yACNWtfZ89kG-KjBA_KkduHiE4";
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let current=null;
+
+function show(id){
+ ["loginView","changeView","appView"].forEach(x=>document.getElementById(x).classList.toggle("hidden",x!==id));
+}
+
+async function login(){
+ const email=document.getElementById("username").value.trim();
+ const password=document.getElementById("password").value;
+ const err=document.getElementById("loginError");
+ err.style.display="none";
+ const {data,error}=await sb.auth.signInWithPassword({email,password});
+ if(error || !data.user){
+   err.textContent="Adresse e-mail ou mot de passe incorrect.";
+   err.style.display="block"; return;
+ }
+ await loadCurrentUser(data.user);
+}
+
+async function loadCurrentUser(user){
+ const {data:profile,error}=await sb.from("profiles").select("name,role").eq("id",user.id).single();
+ if(error || !profile){
+   await sb.auth.signOut();
+   const err=document.getElementById("loginError");
+   err.textContent="Profil VincentNote introuvable.";
+   err.style.display="block"; show("loginView"); return;
+ }
+ current={id:user.id,email:user.email,name:profile.name,role:profile.role};
+ openApp();
+}
+
+function openApp(){
+ show("appView");
+ document.getElementById("welcome").textContent="Bonjour "+current.name+" 👋";
+ document.getElementById("roleText").textContent=current.role==="admin"?"Compte administrateur":"Espace personnel";
+ document.getElementById("adminPanel").classList.toggle("hidden",current.role!=="admin");
+ document.getElementById("userPanel").classList.toggle("hidden",current.role==="admin");
+ switchTab("work"); render();
+}
+
+async function logout(){
+ await sb.auth.signOut(); current=null;
+ document.getElementById("password").value="";
+ show("loginView");
+}
+
+async function addTask(){
+ const txt=document.getElementById("taskText").value.trim();
+ if(!txt)return alert("Écris d'abord le travail à faire.");
+ const row={target:document.getElementById("target").value,
+            subject:document.getElementById("subject").value,
+            task:txt,
+            due_date:document.getElementById("due").value||null,
+            done:false};
+ const {error}=await sb.from("homework").insert(row);
+ if(error){alert("Impossible de publier : "+error.message);return;}
+ document.getElementById("taskText").value="";
+ await render();
+}
+
+async function render(){
+ if(!current)return;
+ const {data,error}=await sb.from("homework").select("*").order("created_at",{ascending:false});
+ if(error){
+   const target=current.role==="admin"?"adminTasks":"userTasks";
+   document.getElementById(target).innerHTML="<p>Erreur de chargement.</p>";
+   return;
+ }
+ const t=data||[];
+ if(current.role==="admin"){
+   document.getElementById("adminTasks").innerHTML=t.length?t.map(x=>`<div class="task"><h3>${esc(x.task)}</h3><div class="meta">${x.target==="papa"?"Papa":x.target==="maman"?"Maman":x.target==="philippe"?"Philippe":esc(x.target)} • ${esc(x.subject)}${x.due_date?" • "+x.due_date:""}</div><span class="badge ${x.done?"done":""}">${x.done?"TERMINÉ":"À FAIRE"}</span><div class="actions"><button class="danger" onclick="delTask(${x.id})">Supprimer</button></div></div>`).join(""):"<p>Aucun travail distribué.</p>";
+ } else {
+   document.getElementById("userTasks").innerHTML=t.length?t.map(x=>`<div class="task"><h3>${esc(x.task)}</h3><div class="meta">${esc(x.subject)}${x.due_date?" • Pour le "+x.due_date:""}</div><span class="badge ${x.done?"done":""}">${x.done?"TERMINÉ":"À FAIRE"}</span><div class="actions">${!x.done?`<button class="ok" onclick="finish(${x.id})">✓ Marquer comme fait</button>`:""}</div></div>`).join(""):"<p>🎉 Aucun travail à faire !</p>";
+ }
+}
+
+async function finish(id){
+ const {error}=await sb.from("homework").update({done:true}).eq("id",id);
+ if(error){alert("Impossible de modifier ce devoir : "+error.message);return;}
+ await render();
+}
+async function delTask(id){
+ if(!confirm("Supprimer ce travail ?"))return;
+ const {error}=await sb.from("homework").delete().eq("id",id);
+ if(error){alert("Impossible de supprimer : "+error.message);return;}
+ await render();
+}
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+
+function getISOWeek(d){
+ const x=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));
+ const day=x.getUTCDay()||7; x.setUTCDate(x.getUTCDate()+4-day);
+ const y=new Date(Date.UTC(x.getUTCFullYear(),0,1));
+ return Math.ceil((((x-y)/86400000)+1)/7);
+}
+function updateWeekSchedule(){
+ const now=new Date(), w=getISOWeek(now);
+ // 19 septembre 2026 / semaine ISO 38 = semaine B.
+ const week=(w%2===0)?"B":"A";
+ const ind=document.getElementById("weekIndicator");
+ if(ind)ind.innerHTML="📅 Nous sommes en <b>semaine "+week+"</b> (semaine "+w+").";
+ const slot=document.getElementById("satAB");
+ if(slot)slot.innerHTML=week==="B"
+   ? 'Français<small>Salle 112</small><span class="badge">SB</span>'
+   : 'Histoire-Géo<small>Salle 112</small><span class="badge">SA</span>';
+}
+function switchTab(tab){
+ const time=tab==="time", rules=tab==="rules", work=tab==="work";
+ document.getElementById("timetablePanel").classList.toggle("hidden",!time);
+ document.getElementById("rulesPanel").classList.toggle("hidden",!rules);
+ document.getElementById("workPanels").classList.toggle("hidden",!work);
+ document.getElementById("timeTab").classList.toggle("active",time);
+ document.getElementById("rulesTab").classList.toggle("active",rules);
+ document.getElementById("workTab").classList.toggle("active",work);
+ if(time)updateWeekSchedule();
+}
+
+async function boot(){
+ const {data}=await sb.auth.getSession();
+ if(data.session?.user) await loadCurrentUser(data.session.user);
+ else show("loginView");
+}
+boot();
+
+</script>
+</body></html>
